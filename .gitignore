@@ -1,0 +1,38 @@
+# Python cache and artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Sensitive local config
+.env
+.env.*
+*.env
+
+# Scraper personal/auth data
+auth.json
+playwright-state*.json
+session*.json
+cookies*.json
+
+# Scraped output (may contain personal/premium content)
+offline/
+*.har
+*.trace
