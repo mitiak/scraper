@@ -49,8 +49,10 @@ uv run scraper crawl \
   --start-url <START_URL> \
   --output-dir ./offline \
   --max-pages 1000 \
+  --url-prefix <START_URL>/docs \
   --skip-path /logout \
   --skip-path /account \
+  --skip-existing \
   --domain-only \
   --resume \
   --show-crawl-status
@@ -63,7 +65,9 @@ Behavior:
 - Extracts links via `page.eval_on_selector_all("a", "els => els.map(e => e.href)")`
 - Filters non-http(s) and static assets
 - Optionally restricts to same domain
+- Optionally limits crawl to exact URL prefixes via `--url-prefix`
 - Optionally skips pages by path prefix with `--skip-path`
+- Optionally skips URLs with existing local HTML via `--skip-existing`
 - Optionally resumes interrupted crawl from checkpoint with `--resume`
 - Waits for `networkidle`
 - Saves HTML for each page with same-domain links rewritten as relative paths
@@ -74,6 +78,7 @@ Resume details:
 - Default checkpoint file: `./offline/.crawl_state.json`
 - Override checkpoint path with `--state-file`
 - Checkpoint is updated during crawl and automatically removed when crawl completes the queue
+- Resume compatibility checks include `--skip-existing`, `--skip-path`, and `--url-prefix` settings
 
 ### 3. Status
 

@@ -15,7 +15,14 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from scraper.saver import save_html
-from scraper.utils import is_same_domain, matches_skipped_path, normalize_url, should_skip_url
+from scraper.utils import (
+    is_same_domain,
+    matches_skipped_path,
+    matches_url_prefix,
+    normalize_url,
+    should_skip_url,
+    url_to_output_path,
+)
 
 
 @dataclass(slots=True)
@@ -37,6 +44,8 @@ class CrawlState:
     start_url: str
     domain_only: bool
     skipped_paths: list[str]
+    url_prefixes: list[str]
+    skip_existing: bool
     queue: list[str]
     visited: list[str]
     saved: int
@@ -49,6 +58,8 @@ def _load_state(state_file: Path) -> CrawlState:
         start_url=str(data["start_url"]),
         domain_only=bool(data["domain_only"]),
         skipped_paths=[str(item) for item in data.get("skipped_paths", [])],
+        url_prefixes=[str(item) for item in data.get("url_prefixes", [])],
+        skip_existing=bool(data.get("skip_existing", False)),
         queue=[str(item) for item in data.get("queue", [])],
         visited=[str(item) for item in data.get("visited", [])],
         saved=int(data.get("saved", 0)),
@@ -61,6 +72,8 @@ def _save_state(
     start_url: str,
     domain_only: bool,
     skipped_paths: list[str],
+    url_prefixes: list[str],
+    skip_existing: bool,
     queue: deque[str],
     visited: set[str],
     saved: int,
@@ -70,6 +83,8 @@ def _save_state(
         "start_url": start_url,
         "domain_only": domain_only,
         "skipped_paths": skipped_paths,
+        "url_prefixes": url_prefixes,
+        "skip_existing": skip_existing,
         "queue": list(queue),
         "visited": sorted(visited),
         "saved": saved,
@@ -84,11 +99,15 @@ def _is_state_compatible(
     start_url: str,
     domain_only: bool,
     skipped_paths: list[str],
+    url_prefixes: list[str],
+    skip_existing: bool,
 ) -> bool:
     return (
         normalize_url(state.start_url) == normalize_url(start_url)
         and state.domain_only == domain_only
         and sorted(state.skipped_paths) == sorted(skipped_paths)
+        and sorted(state.url_prefixes) == sorted(url_prefixes)
+        and state.skip_existing == skip_existing
     )
 
 
@@ -102,6 +121,8 @@ def crawl_site(
     timeout_ms: int = 30_000,
     status_callback: StatusCallback | None = None,
     skipped_paths: list[str] | None = None,
+    url_prefixes: list[str] | None = None,
+    skip_existing: bool = False,
     resume: bool = False,
     state_file: Path | None = None,
 ) -> CrawlResult:
@@ -109,6 +130,7 @@ def crawl_site(
     normalized_start_url = normalize_url(start_url)
     start_domain = urlparse(normalized_start_url).netloc
     path_filters = skipped_paths or []
+    prefix_filters = url_prefixes or []
     visited: set[str] = set()
     queue: deque[str] = deque([normalized_start_url])
     saved = 0
@@ -116,7 +138,9 @@ def crawl_site(
 
     if resume and state_file and state_file.exists():
         state = _load_state(state_file)
-        if _is_state_compatible(state, normalized_start_url, domain_only, path_filters):
+        if _is_state_compatible(
+            state, normalized_start_url, domain_only, path_filters, prefix_filters, skip_existing
+        ):
             visited = set(state.visited)
             queue = deque(state.queue)
             saved = state.saved
@@ -131,9 +155,20 @@ def crawl_site(
             current_url = queue.popleft()
             if current_url in visited:
                 continue
+            if not matches_url_prefix(current_url, prefix_filters):
+                visited.add(current_url)
+                if status_callback:
+                    status_callback("filtered", current_url, len(visited), saved, failed, len(queue))
+                continue
             if matches_skipped_path(current_url, path_filters):
+                visited.add(current_url)
                 if status_callback:
                     status_callback("skipped", current_url, len(visited), saved, failed, len(queue))
+                continue
+            if skip_existing and url_to_output_path(current_url, output_dir).exists():
+                visited.add(current_url)
+                if status_callback:
+                    status_callback("existing", current_url, len(visited), saved, failed, len(queue))
                 continue
 
             visited.add(current_url)
@@ -156,6 +191,8 @@ def crawl_site(
                     link = normalize_url(str(raw_link))
                     if should_skip_url(link):
                         continue
+                    if not matches_url_prefix(link, prefix_filters):
+                        continue
                     if matches_skipped_path(link, path_filters):
                         continue
                     if domain_only and not is_same_domain(link, start_domain):
@@ -174,6 +211,8 @@ def crawl_site(
                         start_url=normalized_start_url,
                         domain_only=domain_only,
                         skipped_paths=path_filters,
+                        url_prefixes=prefix_filters,
+                        skip_existing=skip_existing,
                         queue=queue,
                         visited=visited,
                         saved=saved,

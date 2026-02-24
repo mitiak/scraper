@@ -72,6 +72,13 @@ def matches_skipped_path(url: str, skipped_paths: list[str]) -> bool:
     return False
 
 
+def matches_url_prefix(url: str, url_prefixes: list[str]) -> bool:
+    """Return True when URL starts with one of the exact URL prefix filters."""
+    if not url_prefixes:
+        return True
+    return any(url.startswith(prefix) for prefix in url_prefixes if prefix)
+
+
 def url_to_output_path(url: str, output_dir: Path) -> Path:
     """Convert an absolute URL into an HTML output file path."""
     parsed = urlparse(url)

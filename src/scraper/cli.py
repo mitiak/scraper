@@ -86,6 +86,17 @@ def crawl(
         "--skip-path",
         help="Skip pages whose URL path starts with this prefix. Repeat option to add multiple paths.",
     ),
+    url_prefix: list[str] = typer.Option(
+        [],
+        "--url-prefix",
+        help="Only crawl URLs that start with this exact URL prefix. Repeat option to add multiple prefixes.",
+    ),
+    skip_existing: bool = typer.Option(
+        False,
+        "--skip-existing",
+        help="Skip downloading pages that already exist in the output directory.",
+        is_flag=True,
+    ),
     resume: bool = typer.Option(
         False,
         "--resume",
@@ -109,7 +120,9 @@ def crawl(
     checkpoint_path = state_file or (output_dir / ".crawl_state.json")
     console.print(
         f"Starting crawl: start_url={start_url}, output_dir={output_dir}, max_pages={max_pages}, "
-        f"domain_only={domain_only}, skip_path={skip_path}, resume={resume}, state_file={checkpoint_path}"
+        f"domain_only={domain_only}, skip_path={skip_path}, url_prefix={url_prefix}, "
+        f"skip_existing={skip_existing}, "
+        f"resume={resume}, state_file={checkpoint_path}"
     )
 
     try:
@@ -124,6 +137,8 @@ def crawl(
             domain_only=domain_only,
             status_callback=callback,
             skipped_paths=skip_path,
+            url_prefixes=url_prefix,
+            skip_existing=skip_existing,
             resume=resume,
             state_file=checkpoint_path,
         )
